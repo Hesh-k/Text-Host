@@ -1,14 +1,11 @@
 #include <WiFi.h>
+#include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <SD_MMC.h>
 
-// Wi-Fi credentials (modify as needed)
-const char* ssid = "Alfa";      // Your Wi-Fi SSID
-const char* password = "1234567777"; // Your Wi-Fi Password
-
-// Uncomment to use Access Point mode instead
-// const char* ap_ssid = "ESP32-Pastebin";
-// const char* ap_password = "12345678";
+// Wi-Fi credentials (update with your network details)
+const char* ssid = "Alfa";
+const char* password = "1234567777";
 
 // SD card pins for ESP32-CAM
 #define SD_MMC_CLK  14
@@ -17,53 +14,71 @@ const char* password = "1234567777"; // Your Wi-Fi Password
 
 AsyncWebServer server(80);
 
-// Generate a unique filename based on timestamp
+// Generate a unique filename
 String generateFileName() {
   static unsigned long counter = 0;
   return "/paste_" + String(millis()) + "_" + String(counter++) + ".txt";
 }
 
 void setup() {
-  // Initialize Serial
   Serial.begin(115200);
   while (!Serial) delay(10);
-  Serial.println("ESP32 Pastebin Starting...");
+  Serial.println("ESP32 TextHost Starting...");
 
   // Initialize SD card
   SD_MMC.setPins(SD_MMC_CLK, SD_MMC_CMD, SD_MMC_DATA);
   if (!SD_MMC.begin("/sdcard", true)) {
-    Serial.println("SD Card Mount Failed!");
+    Serial.println("SD Card Mount Failed! Check card insertion or format (FAT32).");
     return;
   }
   Serial.println("SD Card Mounted");
 
+  // Create /pastes directory if it doesn't exist
+  if (!SD_MMC.exists("/pastes")) {
+    SD_MMC.mkdir("/pastes");
+  }
+
   // Connect to Wi-Fi
   WiFi.begin(ssid, password);
   Serial.print("Connecting to Wi-Fi");
-  while (WiFi.status() != WL_CONNECTED) {
+  int attempts = 0;
+  while (WiFi.status() != WL_CONNECTED && attempts < 20) {
     delay(500);
     Serial.print(".");
+    attempts++;
+  }
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("\nWi-Fi Connection Failed!");
+    return;
   }
   Serial.println("\nConnected! IP Address: " + WiFi.localIP().toString());
 
-  // Alternatively, use AP mode
-  // WiFi.softAP(ap_ssid, ap_password);
-  // Serial.println("AP Started! IP Address: " + WiFi.softAPIP().toString());
-
   // Serve static files from SD card
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
-    request->send(SD_MMC, "/web/index.html", "text/html");
+    if (SD_MMC.exists("/web/index.html")) {
+      request->send(SD_MMC, "/web/index.html", "text/html");
+    } else {
+      request->send(404, "text/plain", "index.html not found on SD card");
+    }
   });
 
   server.on("/styles.css", HTTP_GET, [](AsyncWebServerRequest *request) {
-    request->send(SD_MMC, "/web/styles.css", "text/css");
+    if (SD_MMC.exists("/web/styles.css")) {
+      request->send(SD_MMC, "/web/styles.css", "text/css");
+    } else {
+      request->send(404, "text/plain", "styles.css not found");
+    }
   });
 
   server.on("/script.js", HTTP_GET, [](AsyncWebServerRequest *request) {
-    request->send(SD_MMC, "/web/script.js", "application/javascript");
+    if (SD_MMC.exists("/web/script.js")) {
+      request->send(SD_MMC, "/web/script.js", "application/javascript");
+    } else {
+      request->send(404, "text/plain", "script.js not found");
+    }
   });
 
-  // List all files
+  // List files
   server.on("/files", HTTP_GET, [](AsyncWebServerRequest *request) {
     String json = "[";
     File root = SD_MMC.open("/pastes");
@@ -85,7 +100,7 @@ void setup() {
     request->send(200, "application/json", json);
   });
 
-  // Save new file
+  // Save file
   server.on("/save", HTTP_POST, [](AsyncWebServerRequest *request) {
     if (request->hasParam("content", true)) {
       String content = request->getParam("content", true)->value();
@@ -103,7 +118,7 @@ void setup() {
     }
   });
 
-  // Read file content
+  // Read file
   server.on("/file", HTTP_GET, [](AsyncWebServerRequest *request) {
     if (request->hasParam("name")) {
       String filename = "/pastes/" + request->getParam("name")->value();
@@ -154,12 +169,16 @@ void setup() {
     }
   });
 
+  // Handle 404
+  server.onNotFound([](AsyncWebServerRequest *request) {
+    request->send(404, "text/plain", "Not found");
+  });
+
   // Start server
   server.begin();
   Serial.println("Web Server Started");
 }
 
 void loop() {
-  // Nothing to do in loop
   delay(1000);
 }

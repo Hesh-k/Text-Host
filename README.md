@@ -4,6 +4,11 @@ ESP32 TextHost is a self-hosted, Pastebin-like web server running on an ESP32-CA
 
 This project repurposes an ESP32-CAM (even with a non-functional camera) to act as a lightweight text-sharing platform, ideal for local or internet-based use.
 
+## Web UI
+
+![TextHost Dashboard](images/webui.png)
+*TextHost web dashboard showing the text editor and file list.*
+
 ## Features
 
 - **Web Server**: Runs on ESP32-CAM, accessible via Wi-Fi in Station or Access Point mode.

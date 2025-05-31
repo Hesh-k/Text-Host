@@ -4,8 +4,8 @@
 #include <SD_MMC.h>
 
 // Wi-Fi credentials (update with your network details)
-const char* ssid = "Alfa";
-const char* password = "1234567777";
+const char* ssid = "";
+const char* password = "";
 
 // SD card pins for ESP32-CAM
 #define SD_MMC_CLK  14
